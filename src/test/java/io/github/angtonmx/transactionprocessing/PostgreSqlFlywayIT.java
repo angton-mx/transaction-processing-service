@@ -37,7 +37,7 @@ class PostgreSqlFlywayIT {
     private Flyway flyway;
 
     @Test
-    void applicationStartsAndFlywayInitializesPostgreSql() {
+    void flywayCreatesSchemaHistory() {
         var jdbcTemplate = new JdbcTemplate(dataSource);
 
         Integer schemaHistoryTables = jdbcTemplate.queryForObject("""
