@@ -8,6 +8,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -19,11 +20,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.ResourceAccessException;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.http.Fault;
 
 import io.github.angtonmx.transactionprocessing.transaction.ProviderResult;
 import io.github.angtonmx.transactionprocessing.transaction.ProviderStatus;
+import io.github.angtonmx.transactionprocessing.transaction.ProviderTransportException;
 import io.github.angtonmx.transactionprocessing.transaction.Transaction;
 import io.github.angtonmx.transactionprocessing.transaction.TransactionType;
 
@@ -138,6 +142,20 @@ class HttpTransactionProviderTest {
                 null,
                 "PROVIDER_UNAVAILABLE",
                 "Provider unavailable"));
+        wireMock.verify(1, postRequestedFor(urlEqualTo(EXECUTE_PATH)));
+    }
+
+    @Test
+    void mapsTransportFailureWithoutRetry() {
+        wireMock.stubFor(post(EXECUTE_PATH)
+                .willReturn(aResponse().withFault(Fault.EMPTY_RESPONSE)));
+
+        assertThatThrownBy(() -> provider.execute(validTransaction()))
+                .isInstanceOf(ProviderTransportException.class)
+                .hasMessage(
+                        "Provider outcome is unknown due to a transport failure")
+                .hasCauseInstanceOf(ResourceAccessException.class);
+
         wireMock.verify(1, postRequestedFor(urlEqualTo(EXECUTE_PATH)));
     }
 

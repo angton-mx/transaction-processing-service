@@ -6,9 +6,11 @@ import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.ResourceAccessException;
 
 import io.github.angtonmx.transactionprocessing.transaction.ProviderResult;
 import io.github.angtonmx.transactionprocessing.transaction.ProviderStatus;
+import io.github.angtonmx.transactionprocessing.transaction.ProviderTransportException;
 import io.github.angtonmx.transactionprocessing.transaction.Transaction;
 import io.github.angtonmx.transactionprocessing.transaction.TransactionProvider;
 import io.github.angtonmx.transactionprocessing.transaction.TransactionType;
@@ -31,24 +33,33 @@ public class HttpTransactionProvider implements TransactionProvider {
                 transaction.amount(),
                 transaction.currency());
 
-        return restClient.post()
-                .uri(EXECUTE_PATH)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(providerRequest)
-                .exchange((request, response) -> {
-                    if (response.getStatusCode().value() == HttpStatus.OK.value()) {
-                        return mapApproved(response.bodyTo(ProviderApprovedResponse.class));
-                    }
+        try {
+            return restClient.post()
+                    .uri(EXECUTE_PATH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(providerRequest)
+                    .exchange((request, response) -> {
+                        if (response.getStatusCode().value()
+                                == HttpStatus.OK.value()) {
+                            return mapApproved(response.bodyTo(
+                                    ProviderApprovedResponse.class));
+                        }
 
-                    if (response.getStatusCode().is4xxClientError()
-                            || response.getStatusCode().is5xxServerError()) {
-                        return mapRejected(response.bodyTo(ProviderRejectedResponse.class));
-                    }
+                        if (response.getStatusCode().is4xxClientError()
+                                || response.getStatusCode().is5xxServerError()) {
+                            return mapRejected(response.bodyTo(
+                                    ProviderRejectedResponse.class));
+                        }
 
-                    throw new IllegalStateException(
-                            "Unexpected provider HTTP status: "
-                                    + response.getStatusCode().value());
-                });
+                        throw new IllegalStateException(
+                                "Unexpected provider HTTP status: "
+                                        + response.getStatusCode().value());
+                    });
+        } catch (ResourceAccessException exception) {
+            throw new ProviderTransportException(
+                    "Provider outcome is unknown due to a transport failure",
+                    exception);
+        }
     }
 
     private ProviderResult mapApproved(ProviderApprovedResponse response) {

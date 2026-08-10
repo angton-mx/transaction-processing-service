@@ -119,16 +119,36 @@ class TransactionServiceTest {
     }
 
     @Test
-    void propagatesProviderFailureWithoutRetryOrPersistence() {
+    void persistsFailedTransportAttemptWithoutRetry() {
         Transaction transaction = validTransaction();
-        IllegalStateException providerFailure =
-                new IllegalStateException("Provider unavailable");
+        ProviderTransportException providerFailure =
+                new ProviderTransportException(
+                        "Provider outcome is unknown due to a transport failure",
+                        new IllegalStateException("Connection reset"));
+        TransactionEntity repositoryResult = TransactionEntity.failed(
+                transaction,
+                providerFailure.getMessage());
         when(provider.execute(transaction)).thenThrow(providerFailure);
+        when(repository.save(any(TransactionEntity.class)))
+                .thenReturn(repositoryResult);
 
         assertThatThrownBy(() -> service.execute(transaction))
                 .isSameAs(providerFailure);
         verify(provider, times(1)).execute(transaction);
-        verifyNoInteractions(repository);
+        ArgumentCaptor<TransactionEntity> entityCaptor =
+                ArgumentCaptor.forClass(TransactionEntity.class);
+        verify(repository, times(1)).save(entityCaptor.capture());
+        TransactionEntity persistedEntity = entityCaptor.getValue();
+        assertThat(persistedEntity.getStatus())
+                .isEqualTo(TransactionStatus.FAILED);
+        assertThat(persistedEntity.getProviderStatus()).isNull();
+        assertThat(persistedEntity.getProviderTransactionId()).isNull();
+        assertThat(persistedEntity.getBalanceAfter()).isNull();
+        assertThat(persistedEntity.getProviderExecutedAt()).isNull();
+        assertThat(persistedEntity.getProviderCode()).isNull();
+        assertThat(persistedEntity.getProviderMessage()).isNull();
+        assertThat(persistedEntity.getErrorMessage())
+                .isEqualTo(providerFailure.getMessage());
     }
 
     private Transaction validTransaction() {
