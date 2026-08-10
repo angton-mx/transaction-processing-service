@@ -24,7 +24,16 @@ public final class TransactionService {
             throw new IllegalArgumentException("Transaction is required");
         }
 
-        ProviderResult providerResult = provider.execute(transaction);
+        ProviderResult providerResult;
+        try {
+            providerResult = provider.execute(transaction);
+        } catch (ProviderTransportException exception) {
+            repository.save(TransactionEntity.failed(
+                    transaction,
+                    exception.getMessage()));
+            throw exception;
+        }
+
         TransactionEntity entity = switch (providerResult.status()) {
             case APPROVED -> TransactionEntity.executed(transaction, providerResult);
             case REJECTED -> TransactionEntity.rejected(transaction, providerResult);

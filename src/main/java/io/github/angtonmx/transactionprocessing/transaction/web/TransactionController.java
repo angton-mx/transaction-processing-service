@@ -5,6 +5,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import io.github.angtonmx.transactionprocessing.transaction.ProviderTransportException;
 import io.github.angtonmx.transactionprocessing.transaction.Transaction;
 import io.github.angtonmx.transactionprocessing.transaction.TransactionService;
 import io.github.angtonmx.transactionprocessing.transaction.TransactionStatus;
@@ -61,5 +63,10 @@ public class TransactionController {
                     BAD_REQUEST,
                     "limit must be between 1 and 100");
         }
+    }
+
+    @ExceptionHandler(ProviderTransportException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    void handleProviderTransportFailure() {
     }
 }
