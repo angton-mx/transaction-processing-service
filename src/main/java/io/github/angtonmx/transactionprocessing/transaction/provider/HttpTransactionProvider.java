@@ -54,7 +54,7 @@ public class HttpTransactionProvider implements TransactionProvider {
     private ProviderResult mapApproved(ProviderApprovedResponse response) {
         return new ProviderResult(
                 response.transactionId(),
-                ProviderStatus.APPROVED,
+                response.status(),
                 response.balance(),
                 response.executedAt(),
                 null,
@@ -80,7 +80,7 @@ public class HttpTransactionProvider implements TransactionProvider {
 
     private record ProviderApprovedResponse(
             String transactionId,
-            String status,
+            ProviderStatus status,
             BigDecimal balance,
             Instant executedAt) {
     }
