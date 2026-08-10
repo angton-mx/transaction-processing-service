@@ -139,7 +139,7 @@ All query parameters are optional:
 - `limit` defaults to `20` and must be between `1` and `100`.
 - Results are ordered deterministically by `createdAt` descending and then `id` descending (newest first).
 
-Only the public transaction fields shown above are returned. Provider status, provider timestamps, provider codes/messages, and internal errors remain private.
+The response is a JSON array of the public transaction objects shown above; pagination metadata is not included. Provider status, provider timestamps, provider codes/messages, and internal errors remain private.
 
 ## Local provider mock
 
@@ -175,6 +175,8 @@ A provider rejection is an HTTP `4xx` or `5xx` response with a body such as:
   "message": "Insufficient funds"
 }
 ```
+
+If the provider cannot be reached or the connection fails, the service stores a `FAILED` transaction with an unknown provider outcome and returns an empty `503 Service Unavailable` response. This path is not retried automatically.
 
 The automated provider and end-to-end tests start WireMock on a dynamic port, so they do not require this manual stub.
 
