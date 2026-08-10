@@ -1,5 +1,9 @@
 package io.github.angtonmx.transactionprocessing.transaction;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+
 import io.github.angtonmx.transactionprocessing.transaction.persistence.TransactionEntity;
 import io.github.angtonmx.transactionprocessing.transaction.persistence.TransactionRepository;
 
@@ -26,5 +30,21 @@ public final class TransactionService {
             case REJECTED -> TransactionEntity.rejected(transaction, providerResult);
         };
         return repository.save(entity);
+    }
+
+    public Page<TransactionEntity> find(
+            String accountId,
+            TransactionStatus status,
+            TransactionType type,
+            int page,
+            int limit) {
+        Sort order = Sort.by(
+                Sort.Order.desc("createdAt"),
+                Sort.Order.desc("id"));
+        return repository.findTransactions(
+                accountId,
+                status,
+                type,
+                PageRequest.of(page, limit, order));
     }
 }
