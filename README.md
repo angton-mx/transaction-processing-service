@@ -126,6 +126,14 @@ Request constraints:
 - `currency` must be `MXN`.
 - `description` is optional and is not sent to the external provider.
 
+Invalid business input is rejected before service/provider execution with `400 Bad Request` and a concise domain message:
+
+```json
+{
+  "error": "Transaction amount must be greater than 1.00"
+}
+```
+
 ### List transactions
 
 ```shell
@@ -202,6 +210,10 @@ Complete unit and integration verification:
 
 On Windows, replace `./mvnw` with `.\mvnw.cmd`; PowerShell users should quote a property argument when needed, for example `"-Dit.test=TransactionPostIT"`. Integration tests use Testcontainers PostgreSQL and therefore require a running Docker engine. WireMock is started in-process by the provider integration tests.
 
+## Verification summary
+
+The final delivery was verified with 40 unit tests and 57 integration tests: 97 total, with 0 failures, 0 errors, and 0 skipped. GitHub Actions CI is required to pass before merge.
+
 ## Architecture and tradeoffs
 
 The project uses a lightweight ports-and-adapters flow:
@@ -222,6 +234,31 @@ HTTP controller / request-response DTOs
 - A transport timeout remains ambiguous: the provider may have executed the request before connectivity was lost. A production system should add a provider-supported idempotency key and reconciliation workflow before considering retries.
 - PostgreSQL `CHECK` constraints enforce valid types, amount/currency rules, and coherent `EXECUTED`, `REJECTED`, and `FAILED` column combinations. Indexes support deterministic newest-first pagination and account history queries.
 - Offset/page pagination is intentionally simple for this challenge. At very high write rates, cursor pagination would avoid shifting pages, but is outside the current scope.
+
+## Persistence decision
+
+PostgreSQL was selected because financial transaction records need reliable, transactional persistence and deterministic querying. Database constraints provide a second integrity boundary behind domain validation, while indexes support account-history filters and newest-first reads. It is a more realistic production-oriented choice than an in-memory database, and Flyway keeps schema evolution explicit and repeatable. PostgreSQL does not by itself solve every scaling concern; capacity, query behavior, and data lifecycle still require operational planning.
+
+## Scalability considerations
+
+Implemented behavior for the challenge:
+
+- The REST service is stateless and can be replicated horizontally.
+- The external provider owns account balances and locking.
+- Provider HTTP execution occurs without holding a database transaction open.
+- PostgreSQL indexes support the current account-history and newest-first query patterns.
+- Ambiguous financial operations are never retried blindly.
+- Page/offset pagination is a pragmatic bounded implementation for the challenge.
+
+Potential production evolution at substantially higher write and persisted-data volumes:
+
+- Prefer cursor/keyset pagination to avoid shifting pages and large offsets.
+- Evaluate time- or account-access-based partitioning against measured query and retention needs.
+- Add provider-supported idempotency and reconciliation before introducing safe retries.
+
+## AI Usage
+
+OpenAI ChatGPT and Codex were used as development assistants for technical planning, design review, test scaffolding and implementation support, debugging, documentation, and final code review. All generated suggestions and changes were reviewed, tested, and validated before inclusion. The final engineering decisions and responsibility for the delivered implementation remain with the author.
 
 ## Troubleshooting
 

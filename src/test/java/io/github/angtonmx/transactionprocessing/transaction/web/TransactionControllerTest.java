@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -18,8 +19,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -208,6 +213,58 @@ class TransactionControllerTest {
                 ArgumentCaptor.forClass(Transaction.class);
         verify(transactionService).execute(transactionCaptor.capture());
         assertThat(transactionCaptor.getValue().description()).isNull();
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidRequests")
+    void rejectsInvalidBusinessInputBeforeServiceExecution(
+            String request,
+            String expectedError) throws Exception {
+        mockMvc.perform(post("/transactions")
+                        .contentType(APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(APPLICATION_JSON))
+                .andExpect(jsonPath("$", aMapWithSize(1)))
+                .andExpect(jsonPath("$.error").value(expectedError));
+
+        verifyNoInteractions(transactionService);
+    }
+
+    private static Stream<Arguments> invalidRequests() {
+        return Stream.of(
+                Arguments.of("""
+                        {
+                          "accountId": "acc-123456",
+                          "type": "CREDIT",
+                          "amount": 1.00,
+                          "currency": "MXN"
+                        }
+                        """, "Transaction amount must be greater than 1.00"),
+                Arguments.of("""
+                        {
+                          "accountId": "acc-123456",
+                          "type": "DEBIT",
+                          "amount": 10000.01,
+                          "currency": "MXN"
+                        }
+                        """, "Debit amount must not exceed 10000.00"),
+                Arguments.of("""
+                        {
+                          "accountId": "acc-123456",
+                          "type": "CREDIT",
+                          "amount": 1500.00,
+                          "currency": "USD"
+                        }
+                        """, "Only MXN currency is supported"),
+                Arguments.of("""
+                        {
+                          "accountId": "   ",
+                          "type": "CREDIT",
+                          "amount": 1500.00,
+                          "currency": "MXN"
+                        }
+                        """, "Account ID is required"));
     }
 
     private TransactionEntity mockEntity(

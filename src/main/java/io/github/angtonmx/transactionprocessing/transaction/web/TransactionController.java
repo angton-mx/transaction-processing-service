@@ -3,6 +3,7 @@ package io.github.angtonmx.transactionprocessing.transaction.web;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -68,5 +69,11 @@ public class TransactionController {
     @ExceptionHandler(ProviderTransportException.class)
     @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
     void handleProviderTransportFailure() {
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(BAD_REQUEST)
+    Map<String, String> handleInvalidRequest(IllegalArgumentException exception) {
+        return Map.of("error", exception.getMessage());
     }
 }
