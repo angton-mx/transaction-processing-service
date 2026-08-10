@@ -1,4 +1,4 @@
-package io.github.angtonmx.transactionprocessing.domain;
+package io.github.angtonmx.transactionprocessing.transaction;
 
 import java.math.BigDecimal;
 
@@ -14,13 +14,27 @@ public record Transaction(
     private static final String SUPPORTED_CURRENCY = "MXN";
 
     public Transaction {
+        validateAccountId(accountId);
+        validateType(type);
         validateAmount(amount);
         validateDebitAmount(type, amount);
         validateCurrency(currency);
     }
 
+    private static void validateAccountId(String accountId) {
+        if (accountId == null || accountId.isBlank()) {
+            throw new IllegalArgumentException("Account ID is required");
+        }
+    }
+
+    private static void validateType(TransactionType type) {
+        if (type == null) {
+            throw new IllegalArgumentException("Transaction type is required");
+        }
+    }
+
     private static void validateAmount(BigDecimal amount) {
-        if (amount.compareTo(MINIMUM_AMOUNT) <= 0) {
+        if (amount == null || amount.compareTo(MINIMUM_AMOUNT) <= 0) {
             throw new IllegalArgumentException("Transaction amount must be greater than 1.00");
         }
     }

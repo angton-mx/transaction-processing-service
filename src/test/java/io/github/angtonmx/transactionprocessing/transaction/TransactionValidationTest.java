@@ -1,4 +1,4 @@
-package io.github.angtonmx.transactionprocessing.domain;
+package io.github.angtonmx.transactionprocessing.transaction;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -7,20 +7,16 @@ import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class TransactionValidationTest {
 
-    @Test
-    void rejectsAmountEqualToOne() {
+    @ParameterizedTest(name = "{0} is rejected")
+    @ValueSource(strings = {"1.00", "0.99", "0.00", "-1.00"})
+    void rejectsAmountNotGreaterThanOne(String amount) {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> transaction(TransactionType.CREDIT, "1.00", "MXN"));
-    }
-
-    @Test
-    void rejectsAmountBelowOne() {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> transaction(TransactionType.CREDIT, "0.99", "MXN"));
+                .isThrownBy(() -> transaction(TransactionType.CREDIT, amount, "MXN"));
     }
 
     @Test
@@ -60,16 +56,62 @@ class TransactionValidationTest {
     }
 
     @ParameterizedTest(name = "{0} is rejected")
-    @ValueSource(strings = {"USD", "EUR"})
+    @ValueSource(strings = {"USD", "EUR", "mxn", "Mxn", ""})
     void rejectsUnsupportedCurrency(String currency) {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> transaction(TransactionType.CREDIT, "100.00", currency));
     }
 
     @Test
-    void rejectsTransactionThatViolatesMultipleApplicableRules() {
+    void rejectsNullCurrency() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> transaction(TransactionType.DEBIT, "1.00", "USD"));
+                .isThrownBy(() -> transaction(TransactionType.CREDIT, "100.00", null));
+    }
+
+    @ParameterizedTest(name = "[{index}] accountId={0}")
+    @NullAndEmptySource
+    @ValueSource(strings = {"   "})
+    void rejectsMissingAccountId(String accountId) {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new Transaction(
+                        accountId,
+                        TransactionType.CREDIT,
+                        new BigDecimal("100.00"),
+                        "MXN",
+                        "Test transaction"));
+    }
+
+    @Test
+    void rejectsNullType() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new Transaction(
+                        "account-123",
+                        null,
+                        new BigDecimal("100.00"),
+                        "MXN",
+                        "Test transaction"));
+    }
+
+    @Test
+    void rejectsNullAmount() {
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> new Transaction(
+                        "account-123",
+                        TransactionType.CREDIT,
+                        null,
+                        "MXN",
+                        "Test transaction"));
+    }
+
+    @Test
+    void acceptsNullDescription() {
+        assertThatCode(() -> new Transaction(
+                "account-123",
+                TransactionType.CREDIT,
+                new BigDecimal("100.00"),
+                "MXN",
+                null))
+                .doesNotThrowAnyException();
     }
 
     private Transaction transaction(TransactionType type, String amount, String currency) {
