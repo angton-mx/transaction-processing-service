@@ -3,6 +3,7 @@ package io.github.angtonmx.transactionprocessing.transaction;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -14,64 +15,111 @@ import java.time.Instant;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import io.github.angtonmx.transactionprocessing.transaction.persistence.TransactionEntity;
+import io.github.angtonmx.transactionprocessing.transaction.persistence.TransactionRepository;
 
 class TransactionServiceTest {
 
     private TransactionProvider provider;
+    private TransactionRepository repository;
     private TransactionService service;
 
     @BeforeEach
     void setUp() {
         provider = mock(TransactionProvider.class);
-        service = new TransactionService(provider);
+        repository = mock(TransactionRepository.class);
+        service = new TransactionService(provider, repository);
     }
 
     @Test
-    void returnsApprovedProviderResult() {
+    void persistsApprovedProviderResult() {
         Transaction transaction = validTransaction();
         ProviderResult providerResult = new ProviderResult(
                 "provider-transaction-123",
                 ProviderStatus.APPROVED,
                 new BigDecimal("1500.00"),
                 Instant.parse("2026-08-09T18:00:00Z"),
-                "00",
-                "Approved");
+                null,
+                null);
+        TransactionEntity repositoryResult =
+                TransactionEntity.executed(transaction, providerResult);
         when(provider.execute(transaction)).thenReturn(providerResult);
+        when(repository.save(any(TransactionEntity.class)))
+                .thenReturn(repositoryResult);
 
-        ProviderResult result = service.execute(transaction);
+        TransactionEntity result = service.execute(transaction);
 
         verify(provider, times(1)).execute(transaction);
-        assertThat(result).isSameAs(providerResult);
+        ArgumentCaptor<TransactionEntity> entityCaptor =
+                ArgumentCaptor.forClass(TransactionEntity.class);
+        verify(repository, times(1)).save(entityCaptor.capture());
+        TransactionEntity persistedEntity = entityCaptor.getValue();
+        assertThat(persistedEntity.getStatus())
+                .isEqualTo(TransactionStatus.EXECUTED);
+        assertThat(persistedEntity.getProviderStatus())
+                .isEqualTo(ProviderStatus.APPROVED);
+        assertThat(persistedEntity.getProviderTransactionId())
+                .isEqualTo(providerResult.providerTransactionId());
+        assertThat(persistedEntity.getBalanceAfter())
+                .isEqualByComparingTo(providerResult.balance());
+        assertThat(persistedEntity.getProviderExecutedAt())
+                .isEqualTo(providerResult.executedAt());
+        assertThat(persistedEntity.getProviderCode()).isNull();
+        assertThat(persistedEntity.getProviderMessage()).isNull();
+        assertThat(persistedEntity.getErrorMessage()).isNull();
+        assertThat(result).isSameAs(repositoryResult);
     }
 
     @Test
-    void returnsRejectedProviderResult() {
+    void persistsRejectedProviderResult() {
         Transaction transaction = validTransaction();
         ProviderResult providerResult = new ProviderResult(
-                "provider-transaction-456",
+                null,
                 ProviderStatus.REJECTED,
-                new BigDecimal("500.00"),
-                Instant.parse("2026-08-09T18:01:00Z"),
+                null,
+                null,
                 "INSUFFICIENT_FUNDS",
                 "Insufficient funds");
+        TransactionEntity repositoryResult =
+                TransactionEntity.rejected(transaction, providerResult);
         when(provider.execute(transaction)).thenReturn(providerResult);
+        when(repository.save(any(TransactionEntity.class)))
+                .thenReturn(repositoryResult);
 
-        ProviderResult result = service.execute(transaction);
+        TransactionEntity result = service.execute(transaction);
 
         verify(provider, times(1)).execute(transaction);
-        assertThat(result).isSameAs(providerResult);
+        ArgumentCaptor<TransactionEntity> entityCaptor =
+                ArgumentCaptor.forClass(TransactionEntity.class);
+        verify(repository, times(1)).save(entityCaptor.capture());
+        TransactionEntity persistedEntity = entityCaptor.getValue();
+        assertThat(persistedEntity.getStatus())
+                .isEqualTo(TransactionStatus.REJECTED);
+        assertThat(persistedEntity.getProviderStatus())
+                .isEqualTo(ProviderStatus.REJECTED);
+        assertThat(persistedEntity.getProviderCode())
+                .isEqualTo(providerResult.code());
+        assertThat(persistedEntity.getProviderMessage())
+                .isEqualTo(providerResult.message());
+        assertThat(persistedEntity.getProviderTransactionId()).isNull();
+        assertThat(persistedEntity.getBalanceAfter()).isNull();
+        assertThat(persistedEntity.getProviderExecutedAt()).isNull();
+        assertThat(persistedEntity.getErrorMessage()).isNull();
+        assertThat(result).isSameAs(repositoryResult);
     }
 
     @Test
-    void rejectsNullTransactionWithoutCallingProvider() {
+    void rejectsNullTransactionWithoutCallingDependencies() {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> service.execute(null));
 
-        verifyNoInteractions(provider);
+        verifyNoInteractions(provider, repository);
     }
 
     @Test
-    void propagatesProviderFailureWithoutRetry() {
+    void propagatesProviderFailureWithoutRetryOrPersistence() {
         Transaction transaction = validTransaction();
         IllegalStateException providerFailure =
                 new IllegalStateException("Provider unavailable");
@@ -80,6 +128,7 @@ class TransactionServiceTest {
         assertThatThrownBy(() -> service.execute(transaction))
                 .isSameAs(providerFailure);
         verify(provider, times(1)).execute(transaction);
+        verifyNoInteractions(repository);
     }
 
     private Transaction validTransaction() {
