@@ -324,11 +324,17 @@ HTTP controller / request-response DTOs
 
 - Money uses `BigDecimal` in Java and `NUMERIC` in PostgreSQL; binary floating-point is avoided.
 - The provider is called before persistence because the provider owns balances and execution. `TransactionService` intentionally does not hold a database transaction open during the network call.
-- There are no automatic retries. Retrying an ambiguous financial operation without an idempotency contract can duplicate execution.
 - An HTTP response from the provider can confirm a business rejection and is persisted as `REJECTED`. A timeout, DNS error, connection refusal, or reset is a transport failure, not proof of rejection; it is treated separately as `FAILED`.
-- A transport timeout remains ambiguous: the provider may have executed the request before connectivity was lost. A production system should add a provider-supported idempotency key and reconciliation workflow before considering retries.
 - PostgreSQL `CHECK` constraints enforce valid types, amount/currency rules, and coherent `EXECUTED`, `REJECTED`, and `FAILED` column combinations. Indexes support deterministic newest-first pagination and account history queries.
 - Offset/page pagination is intentionally simple for this challenge. At very high write rates, cursor pagination would avoid shifting pages, but is outside the current scope.
+
+### Idempotency and reconciliation
+
+Idempotency was not implemented within the scope of this challenge. The service currently avoids automatic retries because a transport failure does not prove that the provider failed to execute the transaction; retrying the same financial operation blindly could therefore result in duplicate execution.
+
+In a production system, I would first determine whether the external provider already guarantees idempotent execution or exposes an idempotency mechanism. If it does not, the integration should introduce a stable client-generated idempotency key, persist the execution attempt, and provide a reconciliation mechanism for transactions whose provider outcome is unknown.
+
+Only after establishing those guarantees would automatic retries be considered safe.
 
 ## Persistence decision
 
@@ -342,18 +348,16 @@ Implemented behavior for the challenge:
 - The external provider owns account balances and locking.
 - Provider HTTP execution occurs without holding a database transaction open.
 - PostgreSQL indexes support the current account-history and newest-first query patterns.
-- Ambiguous financial operations are never retried blindly.
 - Page/offset pagination is a pragmatic bounded implementation for the challenge.
 
 Potential production evolution at substantially higher write and persisted-data volumes:
 
 - Prefer cursor/keyset pagination to avoid shifting pages and large offsets.
 - Evaluate time- or account-access-based partitioning against measured query and retention needs.
-- Add provider-supported idempotency and reconciliation before introducing safe retries.
 
 ## AI Usage
 
-OpenAI ChatGPT and Codex were used extensively throughout the development process. I defined the system design, architecture, business rules, implementation direction, and engineering decisions, while using AI as a development assistant to help translate those decisions into code, create and refine tests, debug issues, review implementation details, and validate the final solution.
+OpenAI ChatGPT and Codex were used extensively throughout the development process. I interpreted the challenge requirements and defined the system design, architecture, implementation approach, and engineering decisions, while using AI as a development assistant to help translate those decisions into code, create and refine tests, debug issues, review implementation details, and validate the final solution.
 
 AI was also used during the final review of the challenge to verify requirement coverage and to improve the README so that the project setup, execution flow, external provider mock, and API testing steps are clearly documented and reproducible.
 
