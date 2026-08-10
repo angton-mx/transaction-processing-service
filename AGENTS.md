@@ -38,6 +38,23 @@ Do not overengineer.
 
 ---
 
+## Clean Code conventions
+
+- Methods should have one clear responsibility.
+- Prefer small methods.
+- Production method names should be concise and intention-revealing.
+- Prefer production method names of 30 characters or fewer when clarity is
+  preserved.
+- Never use unclear abbreviations only to satisfy the method-name limit.
+- If a production method needs a very long name to explain what it does,
+  reconsider whether it has multiple responsibilities.
+- Tests should describe one behavior.
+- Test names may exceed 30 characters when necessary for clarity.
+- Prefer readable code over clever code.
+- Avoid unnecessary comments and premature abstractions.
+
+---
+
 ## Git workflow
 
 Never work directly on `main`.
