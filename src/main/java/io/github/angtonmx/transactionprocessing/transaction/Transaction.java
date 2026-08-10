@@ -34,8 +34,14 @@ public record Transaction(
     }
 
     private static void validateAmount(BigDecimal amount) {
-        if (amount == null || amount.compareTo(MINIMUM_AMOUNT) <= 0) {
-            throw new IllegalArgumentException("Transaction amount must be greater than 1.00");
+        if (amount == null) {
+            throw new IllegalArgumentException(
+                    "Transaction amount is required");
+        }
+
+        if (amount.compareTo(MINIMUM_AMOUNT) <= 0) {
+            throw new IllegalArgumentException(
+                    "Transaction amount must be greater than 1.00");
         }
     }
 
